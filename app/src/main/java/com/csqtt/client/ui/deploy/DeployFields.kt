@@ -4,20 +4,19 @@
 package com.csqtt.client.ui
 
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,6 +26,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -34,7 +36,6 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.csqtt.client.ui.design.CsqttShapes
-import com.csqtt.client.ui.design.CsqttSpacing
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,9 +51,13 @@ internal fun DeployTextField(
     imeAction: ImeAction = ImeAction.Next,
     visualTransformation: VisualTransformation = VisualTransformation.None,
     trailingContent: (@Composable () -> Unit)? = null,
+    labelStyle: TextStyle? = null,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val colors = OutlinedTextFieldDefaults.colors()
+    val labelTopPadding = with(LocalDensity.current) {
+        (labelStyle ?: MaterialTheme.typography.bodySmall).lineHeight.toDp() / 2
+    }
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
@@ -62,7 +67,8 @@ internal fun DeployTextField(
         visualTransformation = visualTransformation,
         interactionSource = interactionSource,
         textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
-        modifier = modifier.fillMaxWidth(),
+        cursorBrush = SolidColor(if (isError) colors.errorCursorColor else colors.cursorColor),
+        modifier = modifier.fillMaxWidth().padding(top = labelTopPadding),
         decorationBox = { innerTextField ->
             OutlinedTextFieldDefaults.DecorationBox(
                 value = value,
@@ -72,7 +78,15 @@ internal fun DeployTextField(
                 visualTransformation = visualTransformation,
                 interactionSource = interactionSource,
                 isError = isError,
-                label = { Text(label, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
+                label = {
+                    Text(
+                        label,
+                        style = labelStyle ?: LocalTextStyle.current,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                },
                 placeholder = placeholder?.let {
                     { Text(it, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) }
                 },
@@ -91,21 +105,6 @@ internal fun DeployTextField(
             )
         },
     )
-}
-
-@Composable
-internal fun AdaptiveFieldPair(
-    first: @Composable () -> Unit,
-    second: @Composable () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(CsqttSpacing.Sm),
-    ) {
-        Box(modifier = Modifier.weight(1f)) { first() }
-        Box(modifier = Modifier.weight(1f)) { second() }
-    }
 }
 
 @Composable
