@@ -172,6 +172,19 @@ internal fun DeployScreen(
                             },
                         )
                     }
+                    AnimatedVisibility(
+                        visible = state.showSudoPassword,
+                        enter = fadeIn() + expandVertically(expandFrom = Alignment.Top),
+                        exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Top),
+                    ) {
+                        DeployPasswordField(
+                            value = state.sudoPassword,
+                            onValueChange = { onAction(DeployAction.SudoPasswordChanged(it)) },
+                            label = "Пароль sudo",
+                            placeholder = "необязательно",
+                            enabled = !state.isDeploying,
+                        )
+                    }
                     Column {
                         CsqttSettingRow(
                             title = "Ключи SSH",

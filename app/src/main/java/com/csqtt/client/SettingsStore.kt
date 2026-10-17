@@ -31,6 +31,7 @@ internal data class DeploySettingsSnapshot(
     val ip: String = "",
     val sshLogin: String = "",
     val sshPassword: String = "",
+    val sudoPassword: String = "",
     val webLogin: String = "",
     val webPassword: String = "",
     val mainPassword: String = "",
@@ -86,6 +87,7 @@ class SettingsStore(context: Context) {
         private val DEPLOY_LOGIN = stringPreferencesKey("deploy_login")
         private val DEPLOY_PASSWORD = stringPreferencesKey("deploy_password")
         private val DEPLOY_PASSWORD_ENCRYPTED = stringPreferencesKey("deploy_password_encrypted")
+        private val DEPLOY_SUDO_PASSWORD_ENCRYPTED = stringPreferencesKey("deploy_sudo_password_encrypted")
         private val DEPLOY_SSH_PORT = stringPreferencesKey("deploy_ssh_port")
         private val SSH_KEYS_MODE = booleanPreferencesKey("ssh_keys_mode")
         private val DOCKER_INSTALL = booleanPreferencesKey("docker_install")
@@ -284,6 +286,7 @@ class SettingsStore(context: Context) {
             ip = prefs[getProfileKey(DEPLOY_IP, profile)] ?: "",
             sshLogin = prefs[getProfileKey(DEPLOY_LOGIN, profile)] ?: "",
             sshPassword = readSecret(prefs, DEPLOY_PASSWORD_ENCRYPTED, DEPLOY_PASSWORD, profile),
+            sudoPassword = secureStore.decrypt(prefs[getProfileKey(DEPLOY_SUDO_PASSWORD_ENCRYPTED, profile)]).orEmpty(),
             webLogin = prefs[getProfileKey(DEPLOY_WEB_LOGIN, profile)] ?: "",
             webPassword = readSecret(prefs, DEPLOY_WEB_PASSWORD_ENCRYPTED, DEPLOY_WEB_PASSWORD, profile),
             mainPassword = readSecret(prefs, DEPLOY_MAIN_PASSWORD_ENCRYPTED, DEPLOY_MAIN_PASSWORD, profile),
@@ -808,6 +811,14 @@ class SettingsStore(context: Context) {
         }
     }
 
+    suspend fun saveDeploySudoPassword(password: String) {
+        dataStore.edit { prefs ->
+            val profile = prefs[ACTIVE_PROFILE] ?: 0
+            prefs[getProfileKey(DEPLOY_SUDO_PASSWORD_ENCRYPTED, profile)] =
+                if (password.isEmpty()) "" else secureStore.encrypt(password)
+        }
+    }
+
     suspend fun saveVkAuthMode(mode: String) {
         dataStore.edit { prefs ->
             val profile = prefs[ACTIVE_PROFILE] ?: 0
@@ -957,6 +968,14 @@ class SettingsStore(context: Context) {
         dataStore.edit { prefs ->
             for (profile in CsqttConstants.Profiles.MIN_INDEX..CsqttConstants.Profiles.MAX_INDEX) {
                 prefs.migrateSecret(getProfileKey(DEPLOY_PASSWORD_ENCRYPTED, profile), getProfileKey(DEPLOY_PASSWORD, profile))
+                val sudoPasswordKey = getProfileKey(DEPLOY_SUDO_PASSWORD_ENCRYPTED, profile)
+                if (prefs[sudoPasswordKey] == null) {
+                    // Non-root deployments previously reused the SSH password for sudo.
+                    val login = prefs[getProfileKey(DEPLOY_LOGIN, profile)].orEmpty()
+                    prefs[sudoPasswordKey] = if (login.isNotBlank() && login != "root") {
+                        prefs[getProfileKey(DEPLOY_PASSWORD_ENCRYPTED, profile)].orEmpty()
+                    } else ""
+                }
                 prefs.migrateSecret(getProfileKey(DEPLOY_MAIN_PASSWORD_ENCRYPTED, profile), getProfileKey(DEPLOY_MAIN_PASSWORD, profile))
                 prefs.migrateSecret(getProfileKey(DEPLOY_WEB_PASSWORD_ENCRYPTED, profile), getProfileKey(DEPLOY_WEB_PASSWORD, profile))
             }
