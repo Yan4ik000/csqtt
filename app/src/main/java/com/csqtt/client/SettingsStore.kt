@@ -202,29 +202,6 @@ class SettingsStore(context: Context) {
     private val dataStore = appContext.dataStore
     private val secureStore = SecureStringStore(appContext)
 
-    init {
-        // Migrations rewrite every profile's secrets; running them per instance
-        // would spam DataStore edits on each construction of the store.
-        if (migrationsStarted.compareAndSet(false, true)) {
-            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-                migrateConnectionPasswordsToLocalStorage()
-                migrateSecretsToKeystore()
-                migrateLegacyWhitelistMode()
-            }
-        }
-        if (uiCacheStarted.compareAndSet(false, true)) {
-            CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
-                launch { vkHashMode.collect { cachedVkHashMode = it } }
-                launch { vkAccessToken.collect { cachedVkAccessToken = it } }
-                launch { obfsMode.collect { cachedObfsMode = it } }
-                launch { turnTransport.collect { cachedTurnTransport = it } }
-                launch { csqttLinkMode.collect { cachedCsqttLinkMode = it } }
-                launch { workersPerHash.collect { cachedWorkersPerHash = it } }
-                launch { extraWorkers.collect { cachedExtraWorkers = it } }
-            }
-        }
-    }
-
     val activeProfile: Flow<Int> = dataStore.data.map {
         (it[ACTIVE_PROFILE] ?: CsqttConstants.Profiles.MIN_INDEX).coerceIn(
             CsqttConstants.Profiles.MIN_INDEX,
@@ -473,6 +450,29 @@ class SettingsStore(context: Context) {
     val updateCheckIntervalHours: Flow<Int> = dataStore.data.map { it[UPDATE_CHECK_INTERVAL_HOURS] ?: 24 }
     val updatePostponeUntil: Flow<Long> = dataStore.data.map { it[UPDATE_POSTPONE_UNTIL] ?: 0L }
     val updatePostponeVersion: Flow<String> = dataStore.data.map { it[UPDATE_POSTPONE_VERSION] ?: "" }
+
+    init {
+        // Migrations rewrite every profile's secrets; running them per instance
+        // would spam DataStore edits on each construction of the store.
+        if (migrationsStarted.compareAndSet(false, true)) {
+            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                migrateConnectionPasswordsToLocalStorage()
+                migrateSecretsToKeystore()
+                migrateLegacyWhitelistMode()
+            }
+        }
+        if (uiCacheStarted.compareAndSet(false, true)) {
+            CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+                launch { vkHashMode.collect { cachedVkHashMode = it } }
+                launch { vkAccessToken.collect { cachedVkAccessToken = it } }
+                launch { obfsMode.collect { cachedObfsMode = it } }
+                launch { turnTransport.collect { cachedTurnTransport = it } }
+                launch { csqttLinkMode.collect { cachedCsqttLinkMode = it } }
+                launch { workersPerHash.collect { cachedWorkersPerHash = it } }
+                launch { extraWorkers.collect { cachedExtraWorkers = it } }
+            }
+        }
+    }
 
     suspend fun saveTunnelWasRunning(running: Boolean) {
         dataStore.edit { prefs ->
