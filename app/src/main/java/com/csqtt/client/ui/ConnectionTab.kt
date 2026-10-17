@@ -60,6 +60,8 @@ import com.csqtt.client.SettingsStore
 import com.csqtt.client.StoredSecretState
 import com.csqtt.client.TunnelAuthSnapshot
 import com.csqtt.client.TunnelManager
+import com.csqtt.client.TunnelConnectionPhase
+import com.csqtt.client.TunnelConnectionSnapshot
 import com.csqtt.client.TunnelService
 import com.csqtt.client.VkHashValidationCodec
 import com.csqtt.client.newTunnelSessionId
@@ -81,10 +83,7 @@ internal fun ConnectionTab(
     val context = androidx.compose.ui.platform.LocalContext.current.applicationContext
     val scope = rememberCoroutineScope()
     val connectionPassword = tunnelAuthSettings.connectionPassword
-    val tunnelRunning by TunnelManager.running.collectAsStateWithLifecycle()
-    val tunnelStarting by TunnelManager.starting.collectAsStateWithLifecycle()
-    val tunnelStopping by TunnelManager.stopping.collectAsStateWithLifecycle()
-    val autoPausedForWifi by TunnelManager.autoPausedForWifi.collectAsStateWithLifecycle()
+    val connection by TunnelManager.connection.collectAsStateWithLifecycle()
     val cooldownActive by TunnelManager.cooldownActive.collectAsStateWithLifecycle()
 
     val csqttLinkMode by settingsStore.csqttLinkMode.collectAsStateWithLifecycle(initialValue = false)
@@ -210,7 +209,7 @@ internal fun ConnectionTab(
     }
 
     fun toggleTunnel() {
-        if (tunnelRunning || tunnelStarting || autoPausedForWifi) {
+        if (connection.canStop) {
             context.startService(Intent(context, TunnelService::class.java).apply { action = "STOP" })
             return
         }
@@ -257,10 +256,7 @@ internal fun ConnectionTab(
             contentAlignment = Alignment.Center,
         ) {
             TunnelConnectionPanel(
-                tunnelRunning = tunnelRunning,
-                tunnelStarting = tunnelStarting,
-                tunnelStopping = tunnelStopping,
-                autoPausedForWifi = autoPausedForWifi,
+                connection = connection,
                 cooldownActive = cooldownActive,
                 configurationValid = isValid,
                 obfsMode = obfsMode,
@@ -274,10 +270,7 @@ internal fun ConnectionTab(
 
 @Composable
 private fun TunnelConnectionPanel(
-    tunnelRunning: Boolean,
-    tunnelStarting: Boolean,
-    tunnelStopping: Boolean,
-    autoPausedForWifi: Boolean,
+    connection: TunnelConnectionSnapshot,
     cooldownActive: Boolean,
     configurationValid: Boolean,
     obfsMode: String,
@@ -285,9 +278,13 @@ private fun TunnelConnectionPanel(
     workMode: String,
     onToggleTunnel: () -> Unit,
 ) {
-    val isStarting = tunnelStarting && !tunnelRunning && !tunnelStopping
-    val canToggle = !tunnelStopping && (tunnelRunning || isStarting || autoPausedForWifi || !cooldownActive || !configurationValid)
-    val activeVisual = tunnelRunning || isStarting || autoPausedForWifi || tunnelStopping
+    val tunnelRunning = connection.connected
+    val tunnelStopping = connection.phase == TunnelConnectionPhase.Stopping
+    val autoPausedForWifi = connection.phase == TunnelConnectionPhase.PausedForWifi
+    val isStarting = connection.phase == TunnelConnectionPhase.Connecting ||
+        connection.phase == TunnelConnectionPhase.Reconnecting
+    val canToggle = !tunnelStopping && (connection.canStop || !cooldownActive || !configurationValid)
+    val activeVisual = connection.engaged
     val logoScale = if (activeVisual) 1.06f else 0.96f
     val statusColor = when {
         autoPausedForWifi -> MaterialTheme.colorScheme.tertiary
@@ -297,14 +294,7 @@ private fun TunnelConnectionPanel(
         cooldownActive -> MaterialTheme.colorScheme.tertiary
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
-    val statusText = when {
-        autoPausedForWifi -> "Ожидание. Автопауза при Wi-Fi"
-        tunnelStopping -> "Ожидание"
-        tunnelRunning -> "Подключено"
-        isStarting -> "Подключение"
-        cooldownActive -> "Ожидание"
-        else -> "Отключено"
-    }
+    val statusText = if (!connection.engaged && cooldownActive) "Ожидание" else connection.phase.label
 
     AppSectionCard(
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
@@ -319,7 +309,7 @@ private fun TunnelConnectionPanel(
                 painter = painterResource(id = R.drawable.ic_c_logo),
                 contentDescription = when {
                     tunnelStopping -> "Ожидание отключения VPN"
-                    tunnelRunning || autoPausedForWifi -> "Остановить VPN"
+                    connection.canStop -> "Остановить VPN"
                     else -> "Включить VPN"
                 },
                 modifier = Modifier
@@ -350,7 +340,7 @@ private fun TunnelConnectionPanel(
                 textAlign = TextAlign.Center,
             )
 
-            TunnelUptimeText(tunnelRunning = tunnelRunning || autoPausedForWifi || tunnelStopping)
+            TunnelUptimeText(tunnelRunning = connection.engaged)
 
             TunnelConnectionStatusPanel(
                 obfs = obfsDisplayName(obfsMode),

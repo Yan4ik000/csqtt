@@ -129,7 +129,6 @@ class MainActivity : ComponentActivity() {
 
         importCsqttLink(intent)
 
-        TunnelManager.initObservers(this)
 
         enableEdgeToEdge()
 
@@ -282,8 +281,7 @@ fun MainScreen(
     onVkAuthRequested: () -> Unit = {},
 ) {
     val unreadErrors by TunnelManager.unreadErrorCount.collectAsStateWithLifecycle()
-    val tunnelRunning by TunnelManager.running.collectAsStateWithLifecycle()
-    val tunnelAutoPausedForWifi by TunnelManager.autoPausedForWifi.collectAsStateWithLifecycle()
+    val connection by TunnelManager.connection.collectAsStateWithLifecycle()
     val view = LocalView.current
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -309,7 +307,7 @@ fun MainScreen(
     // recompose the whole MainScreen (tabs included) per event.
     val dragTargetIndex = remember { mutableIntStateOf(-1) }
     val dragProgress = remember { mutableFloatStateOf(0f) }
-    var wasRunning by remember { mutableStateOf(tunnelRunning) }
+    var wasEngaged by remember { mutableStateOf(connection.engaged) }
     val updateCheckIntervalHours by settingsStore.updateCheckIntervalHours.collectAsStateWithLifecycle(
         initialValue = DEFAULT_UPDATE_CHECK_INTERVAL_HOURS
     )
@@ -336,11 +334,11 @@ fun MainScreen(
         }
     }
 
-    LaunchedEffect(tunnelRunning, tunnelAutoPausedForWifi) {
-        if (wasRunning && !tunnelRunning && !tunnelAutoPausedForWifi) {
+    LaunchedEffect(connection.engaged) {
+        if (wasEngaged && !connection.engaged) {
             TunnelManager.startCooldown(CsqttConstants.Timeouts.VPN_PERMISSION_COOLDOWN_MS)
         }
-        wasRunning = tunnelRunning
+        wasEngaged = connection.engaged
     }
 
     LaunchedEffect(selectedTab) {
@@ -546,7 +544,7 @@ fun MainScreen(
                         dragTargetIndex = dragTargetIndex,
                         dragProgress = dragProgress,
                         unreadErrors = unreadErrors,
-                        tunnelRunning = tunnelRunning,
+                        tunnelRunning = connection.connected,
                         onTabSelected = { index ->
                             if (selectedTab != index) {
                                 view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
